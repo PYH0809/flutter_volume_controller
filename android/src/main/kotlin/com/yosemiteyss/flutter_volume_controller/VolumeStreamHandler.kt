@@ -10,6 +10,9 @@ import io.flutter.plugin.common.EventChannel
 class VolumeStreamHandler(
     private val applicationContext: Context,
     private val onSetVolumeStream: (streamType: Int) -> Unit,
+    // PiliPlus: runs on the main thread, as events must be sent from it: the handler itself
+    // runs off it.
+    private val onMain: (Runnable) -> Unit = { it.run() },
 ) : EventChannel.StreamHandler, DefaultLifecycleObserver {
     private var observedStream: AudioStream = AudioStream.MUSIC
     private var volumeBroadcastReceiver: VolumeBroadcastReceiver? = null
@@ -28,12 +31,18 @@ class VolumeStreamHandler(
 
             if (emitOnStart) {
                 val volume = applicationContext.audioManager.getVolume(audioStream)
-                events?.success(volume.toString())
+                // PiliPlus: see onMain.
+                onMain { events?.success(volume.toString()) }
             }
         } catch (e: Exception) {
-            events?.error(
-                ErrorCode.REGISTER_VOLUME_LISTENER, ErrorMessage.REGISTER_VOLUME_LISTENER, e.message
-            )
+            // PiliPlus: see onMain.
+            onMain {
+                events?.error(
+                    ErrorCode.REGISTER_VOLUME_LISTENER,
+                    ErrorMessage.REGISTER_VOLUME_LISTENER,
+                    e.message,
+                )
+            }
         }
     }
 
